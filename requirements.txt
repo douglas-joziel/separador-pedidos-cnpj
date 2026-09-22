@@ -1,0 +1,5 @@
+filetype
+pandas
+python-calamine
+streamlit
+xlsxwriter
