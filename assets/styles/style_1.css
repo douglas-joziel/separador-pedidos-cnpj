@@ -1,0 +1,21 @@
+.block-container {
+    padding-top: 2rem !important;
+}
+
+[data-testid='stFileUploaderDropzoneInstructions'] > div > span {
+    font-size: 0;
+}
+
+[data-testid='stFileUploaderDropzoneInstructions'] > div > span::after {
+    font-size: 14px;
+    content: 'Limite de 200 MB por arquivo • XLSX, XLS, XML';
+}
+
+[data-testid='stFileUploaderDropzone'] [data-testid='stMarkdownContainer'] > p {
+    font-size: 0;
+}
+
+[data-testid='stFileUploaderDropzone'] [data-testid='stMarkdownContainer'] > p::after {
+    font-size: 16px;
+    content: 'Procurar arquivo';
+}
