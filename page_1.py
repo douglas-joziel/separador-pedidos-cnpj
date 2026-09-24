@@ -20,58 +20,57 @@ def main():
     st.divider()
 
     st.markdown("#### 1. Faça o upload do arquivo")
-    arquivo_upload = st.file_uploader(label="", type=["xlsx", "xls", "xlm"], label_visibility="collapsed")
+    uploaded_file = st.file_uploader(label="", type=["xlsx", "xls", "xlm"], label_visibility="collapsed")
 
-    if arquivo_upload:
-        df = carregar_dados(arquivo_upload)
+    if uploaded_file:
+        df = load_data(uploaded_file)
 
-        if st.button(f"{arquivo_upload.name}", icon=":material/visibility:"):
+        @st.dialog(title=f"{uploaded_file.name}", width="medium", icon=":material/visibility:")
+        def show_data(dataframe):
+            st.dataframe(dataframe, width="stretch", hide_index=True)
 
-            @st.dialog(title=f"{arquivo_upload.name}", width="medium", icon=":material/visibility:")
-            def exibir_dados(dataframe):
-                st.dataframe(dataframe, width="stretch", hide_index=True)
-
-            exibir_dados(df)
+        if st.button(f"{uploaded_file.name}", icon=":material/visibility:"):
+            show_data(df)
 
         st.markdown("#### 2. Identifique a coluna dos CNPJs")
-        coluna_cnpj = st.radio(
+        cnpj_col = st.radio(
             label="",
             options=df.columns,
             index=next((i for i, col in enumerate(df.columns) if "cnpj" in col.lower()), None),
             label_visibility="collapsed",
         )
 
-        df[coluna_cnpj] = df[coluna_cnpj].apply(lambda cnpj: "".join(filter(str.isalnum, cnpj)))
+        df[cnpj_col] = df[cnpj_col].apply(lambda cnpj: "".join(filter(str.isalnum, cnpj)))
 
-        if coluna_cnpj is not None:
+        if cnpj_col is not None:
             st.markdown("#### 3. Download do pacote de pedidos")
 
-            arquivo_zip = gerar_arquivo_zip(df, coluna_cnpj)
-            nome_arquivo_zip = Path(arquivo_upload.name).with_suffix(".zip").name
+            zip_file = export_zip_file(df, cnpj_col)
+            zip_filename = Path(uploaded_file.name).with_suffix(".zip").name
 
             st.info(
-                f"Extraia o conteúdo do arquivo *{nome_arquivo_zip}* para acessar os {df[coluna_cnpj].nunique()} pedidos.",
+                f"Extraia o conteúdo do arquivo *{zip_filename}* para acessar os {df[cnpj_col].nunique()} pedidos.",
                 icon=":material/info:",
             )
 
             st.download_button(
-                label=f"{nome_arquivo_zip}",
+                label=f"{zip_filename}",
                 icon=":material/download:",
-                data=arquivo_zip,
-                file_name=nome_arquivo_zip,
+                data=zip_file,
+                file_name=zip_filename,
                 mime="application/zip",
                 type="primary",
             )
 
 
 @st.cache_data(ttl=3600, show_spinner="Processando o arquivo...")
-def carregar_dados(arquivo_upload):
+def load_data(uploaded_file):
     try:
-        if filetype.guess_extension(arquivo_upload) in ["xlsx", "xls"]:
-            df = pd.read_excel(arquivo_upload, engine="calamine", dtype=str)
+        if filetype.guess_extension(uploaded_file) in ["xlsx", "xls"]:
+            df = pd.read_excel(uploaded_file, engine="calamine", dtype=str)
 
-        if filetype.guess_extension(arquivo_upload) is None:
-            tree = ET.parse(arquivo_upload)
+        if filetype.guess_extension(uploaded_file) is None:
+            tree = ET.parse(uploaded_file)
             root = tree.getroot()
 
             ns_uri = root.tag.split("}")[0].strip("{")
@@ -94,29 +93,29 @@ def carregar_dados(arquivo_upload):
 
 
 @st.cache_data(ttl=3600, show_spinner="Processando o arquivo...")
-def gerar_arquivo_zip(df, coluna_cnpj):
+def export_zip_file(df, cnpj_col):
     try:
-        lista_cnpj = df[coluna_cnpj].dropna().unique().tolist()
+        cnpj_list = df[cnpj_col].dropna().unique().tolist()
 
-        buffer_zip = io.BytesIO()
-        with zipfile.ZipFile(buffer_zip, "w") as zf:
-            for cnpj in lista_cnpj:
-                df_filtrado = df[df[coluna_cnpj] == cnpj]
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            for cnpj in cnpj_list:
+                filtered_df = df[df[cnpj_col] == cnpj]
 
-                buffer_excel = io.BytesIO()
-                with pd.ExcelWriter(buffer_excel, engine="xlsxwriter") as writer:
-                    df_filtrado.to_excel(writer, index=False, sheet_name="Planilha1")
+                excel_buffer = io.BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
+                    filtered_df.to_excel(writer, index=False, sheet_name="Planilha1")
 
                     worksheet = writer.sheets["Planilha1"]
 
-                    for i, col in enumerate(df.columns):
-                        largura_max = max(df[col].fillna("").astype(str).map(len).max(), len(col)) + 2
-                        worksheet.set_column(i, i, largura_max)
+                    for i, col in enumerate(filtered_df.columns):
+                        max_width = max(filtered_df[col].fillna("").astype(str).map(len).max(), len(col)) + 2
+                        worksheet.set_column(i, i, max_width)
 
-                arquivo_pedido = "".join(filter(str.isalnum, cnpj)) + ".xlsx"
-                zf.writestr(arquivo_pedido, buffer_excel.getvalue())
+                output_filename = "".join(filter(str.isalnum, cnpj)) + ".xlsx"
+                zf.writestr(output_filename, excel_buffer.getvalue())
 
-        return buffer_zip.getvalue()
+        return zip_buffer.getvalue()
     except Exception as e:
         st.error(f"Erro ao gerar o pacote de pedidos: {e}")
         st.stop()
